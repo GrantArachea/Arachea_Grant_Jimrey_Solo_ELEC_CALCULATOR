@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Magma Scientific Calculator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body data-theme="dark">
+  <!-- Ambient background -->
+  <div class="bg" aria-hidden="true"></div>
+
+  <div class="shell">
+    <header class="brand">
+      <div class="brand__title">CALCULATOR</div>
+      <div class="brand__sub">Calculator Project in ELEC</div>
+    </header>
+
+    <main class="device">
+      <!-- Top header row -->
+      <div class="topbar">
+        <div class="topbar__left">
+          <div class="topbar__h1">Scientific</div>
+          <div class="topbar__h2" id="modeLabel">Basic mode</div>
+        </div>
+
+        <div class="topbar__right">
+          <button id="themeToggle" class="chip chip--muted" type="button">Light mode</button>
+          <button id="toggleSci" class="chip chip--hot" type="button">Sci panel</button>
+        </div>
+      </div>
+
+      <!-- Display -->
+      <section class="screen" aria-label="Calculator display">
+        <div class="screen__expr" id="expressionDisplay">0</div>
+        <div class="screen__res" id="resultDisplay">0</div>
+      </section>
+
+      <!-- Keypad area -->
+      <section class="pad" aria-label="Calculator keypad">
+        <!-- BASIC KEYS -->
+        <div class="grid grid--main">
+          <button class="btn btn--ghost" data-action="clear">AC</button>
+          <button class="btn btn--ghost" data-action="delete">DEL</button>
+          <button class="btn btn--op" data-display="%" data-value="%">%</button>
+          <button class="btn btn--op" data-display="÷" data-value="/">÷</button>
+
+          <button class="btn" data-display="7">7</button>
+          <button class="btn" data-display="8">8</button>
+          <button class="btn" data-display="9">9</button>
+          <button class="btn btn--op" data-display="×" data-value="*">×</button>
+
+          <button class="btn" data-display="4">4</button>
+          <button class="btn" data-display="5">5</button>
+          <button class="btn" data-display="6">6</button>
+          <button class="btn btn--op" data-display="−" data-value="-">−</button>
+
+          <button class="btn" data-display="1">1</button>
+          <button class="btn" data-display="2">2</button>
+          <button class="btn" data-display="3">3</button>
+          <button class="btn btn--op" data-display="+" data-value="+">+</button>
+
+          <button class="btn btn--wide" data-display="0">0</button>
+          <button class="btn" data-display=".">.</button>
+          <button class="btn btn--eq" data-action="equals">=</button>
+        </div>
+
+        <!-- SCIENTIFIC PANEL (JS toggles "hidden" class) -->
+        <div id="scientificPanel" class="sci hidden" aria-label="Scientific panel">
+          <div class="grid grid--sci">
+            <button class="btn btn--fn" data-display="√(" data-value="Math.sqrt(">√</button>
+            <button class="btn btn--fn" data-display="xʸ" data-value="**">xʸ</button>
+            <button class="btn btn--fn" data-display="(" data-value="(">(</button>
+            <button class="btn btn--fn" data-display=")" data-value=")">)</button>
+
+            <button class="btn btn--fn" data-display="sin(" data-value="sinDeg(">sin</button>
+            <button class="btn btn--fn" data-display="cos(" data-value="cosDeg(">cos</button>
+            <button class="btn btn--fn" data-display="tan(" data-value="tanDeg(">tan</button>
+            <button class="btn btn--fn" data-display="π" data-value="Math.PI">π</button>
+
+            <button class="btn btn--fn" data-display="ln(" data-value="ln(">ln</button>
+            <button class="btn btn--fn" data-display="log(" data-value="log10(">log</button>
+            <button class="btn btn--fn" data-display="e" data-value="Math.E">e</button>
+            <button class="btn btn--fn" data-display="EXP" data-value="*10**">EXP</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- KEEP YOUR JS FILE EXACTLY -->
+  <script src="calculator2.js"></script>
+</body>
+</html>
