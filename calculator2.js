@@ -1,6 +1,17 @@
-// ====================== Calculator Logic ======================
+// calculator2.js
+// ====================== Calculator Logic (REAL % + auto-eval on %) ======================
+//
+// % behavior (calculator-like):
+// - 10%            -> 0.1
+// - 50 × 10%       -> 5
+// - 50 + 10%       -> 55
+// - 200 - 25%      -> 150
+// - 200 ÷ 25%      -> 800
+//
+// Extra behavior:
+// - Pressing % auto-evaluates immediately (no need to press "=")
+// - All your existing features remain unchanged otherwise.
 
-// DOM references
 const expressionDisplay = document.getElementById("expressionDisplay");
 const resultDisplay = document.getElementById("resultDisplay");
 const scientificPanel = document.getElementById("scientificPanel");
@@ -8,17 +19,13 @@ const modeLabel = document.getElementById("modeLabel");
 const toggleSciBtn = document.getElementById("toggleSci");
 const themeToggleBtn = document.getElementById("themeToggle");
 
-// Expression is stored as array of tokens { display, value }
 let tokens = [];
 
 // ------------- Display / Core helpers -------------
 
 function updateExpressionDisplay() {
-  if (!tokens.length) {
-    expressionDisplay.textContent = "0";
-  } else {
-    expressionDisplay.textContent = tokens.map((t) => t.display).join("");
-  }
+  if (!tokens.length) expressionDisplay.textContent = "0";
+  else expressionDisplay.textContent = tokens.map((t) => t.display).join("");
 }
 
 function clearAll() {
@@ -41,18 +48,16 @@ function addToken(display, value) {
 // ------------- Implicit multiplication logic -------------
 
 function getTokenType(display, value) {
-  // numbers
   if (/^[0-9]$/.test(display)) return "digit";
   if (display === ".") return "dot";
 
-  // parentheses
   if (display === "(") return "lparen";
   if (display === ")") return "rparen";
 
-  // function opening tokens (end with "(" in value)
+  if (display === "%" || value === "%") return "percent";
+
   if (typeof value === "string" && value.endsWith("(")) return "funcOpen";
 
-  // constants
   if (
     display === "π" ||
     value === "Math.PI" ||
@@ -62,8 +67,7 @@ function getTokenType(display, value) {
     return "const";
   }
 
-  // operators
-  if ("+-×÷*/%".includes(display) || ["+", "-", "*", "/", "%"].includes(value)) {
+  if ("+-×÷*/".includes(display) || ["+", "-", "*", "/", "%"].includes(value)) {
     return "op";
   }
 
@@ -80,27 +84,25 @@ function handleInput(display, value = display) {
   const newType = getTokenType(display, value);
   const lastType = last ? getTokenType(last.display, last.value) : null;
 
-  // Build multi-digit/decimal numbers: 1 2 3 -> "123", 1 . 5 -> "1.5"
+  // Build multi-digit/decimal numbers
   if (last && isNumberPart(lastType) && isNumberPart(newType)) {
     addToken(display, value);
     return;
   }
 
-  // Implicit multiplication:
-  //   1(2)      -> 1 * (2)
-  //   1√(9)     -> 1 * √(9)
-  //   1sin(30)  -> 1 * sin(30)
-  //   1π        -> 1 * π
-  //   π2        -> π * 2
-  //   )2        -> ) * 2
+  // Implicit multiplication (also allow percent -> next operand)
   let needImplicitMultiply = false;
-
   if (
     last &&
-    (lastType === "digit" || lastType === "rparen" || lastType === "const") &&
-    (newType === "lparen" || newType === "funcOpen" || newType === "const" || newType === "digit")
+    (lastType === "digit" ||
+      lastType === "rparen" ||
+      lastType === "const" ||
+      lastType === "percent") &&
+    (newType === "lparen" ||
+      newType === "funcOpen" ||
+      newType === "const" ||
+      newType === "digit")
   ) {
-    // We already handled digit-digit case above.
     needImplicitMultiply = !(lastType === "digit" && newType === "digit");
   }
 
@@ -111,7 +113,7 @@ function handleInput(display, value = display) {
   addToken(display, value);
 }
 
-// ------------- Math helpers (for functions in eval) -------------
+// ------------- Math helpers -------------
 
 function toRad(deg) {
   return (deg * Math.PI) / 180;
@@ -130,7 +132,7 @@ function tanDeg(x) {
 }
 
 function ln(x) {
-  return Math.log(x); // natural log
+  return Math.log(x);
 }
 
 function log10(x) {
@@ -138,32 +140,19 @@ function log10(x) {
   return Math.log(x) / Math.LN10;
 }
 
-/**
- * Auto-balance parentheses so user doesn’t need to press ")"
- * Example:
- *  "Math.sqrt(9"   -> "Math.sqrt(9)"
- *  "sinDeg(30"     -> "sinDeg(30)"
- *  "1*(2+3"        -> "1*(2+3)"
- */
 function autoBalanceParentheses(expr) {
   let balance = 0;
   for (let i = 0; i < expr.length; i++) {
     const ch = expr[i];
-    if (ch === "(") {
-      balance++;
-    } else if (ch === ")") {
+    if (ch === "(") balance++;
+    else if (ch === ")") {
       if (balance > 0) balance--;
     }
   }
-  if (balance > 0) {
-    expr += ")".repeat(balance);
-  }
+  if (balance > 0) expr += ")".repeat(balance);
   return expr;
 }
 
-/**
- * Format result: normal decimal up to 16 digits, else exponential.
- */
 function formatResult(result) {
   if (!Number.isFinite(result)) return "Error";
   if (result === 0) return "0";
@@ -179,18 +168,162 @@ function formatResult(result) {
   }
 
   const digitsOnly = plain.replace(/[^0-9]/g, "");
-
-  if (digitsOnly.length <= 16) {
-    return plain;
-  }
+  if (digitsOnly.length <= 16) return plain;
 
   return result.toExponential(15);
+}
+
+// -------------------- % handling --------------------
+
+function isOpValue(v) {
+  return v === "+" || v === "-" || v === "*" || v === "/" || v === "%";
+}
+
+function lastIndexWhere(pred, start, arr) {
+  for (let i = start; i >= 0; i--) {
+    if (pred(i)) return i;
+  }
+  return -1;
+}
+
+/**
+ * Returns {start, end} for the last operand ending at endIndex (inclusive).
+ * Supports numbers, constants, (...) groups, and function calls like sinDeg(...).
+ */
+function findLastOperandRange(endIndex, arr) {
+  if (endIndex < 0) return null;
+
+  const tks = arr;
+  const endTok = tks[endIndex];
+
+  function isFuncOpenToken(tok) {
+    return typeof tok?.value === "string" && tok.value.endsWith("(");
+  }
+
+  // Closing paren: match it, include possible function open token before "("
+  if (endTok.display === ")" || endTok.value === ")") {
+    let depth = 0;
+    for (let i = endIndex; i >= 0; i--) {
+      const d = tks[i].display;
+      if (d === ")") depth++;
+      else if (d === "(") {
+        depth--;
+        if (depth === 0) {
+          const maybeFunc = i - 1;
+          if (maybeFunc >= 0 && isFuncOpenToken(tks[maybeFunc])) {
+            return { start: maybeFunc, end: endIndex };
+          }
+          return { start: i, end: endIndex };
+        }
+      }
+    }
+    return { start: 0, end: endIndex };
+  }
+
+  const endType = getTokenType(endTok.display, endTok.value);
+
+  if (endType === "const") return { start: endIndex, end: endIndex };
+
+  if (endType === "digit" || endType === "dot") {
+    let i = endIndex;
+    while (i - 1 >= 0) {
+      const type = getTokenType(tks[i - 1].display, tks[i - 1].value);
+      if (type === "digit" || type === "dot") i--;
+      else break;
+    }
+    return { start: i, end: endIndex };
+  }
+
+  if (endType === "percent") {
+    return findLastOperandRange(endIndex - 1, arr);
+  }
+
+  return { start: endIndex, end: endIndex };
+}
+
+/**
+ * Convert % into calculator percent semantics by rewriting the expression.
+ * Returns a JS-evaluable string with no % left.
+ */
+function buildExprWithPercent() {
+  const tks = tokens.slice();
+
+  const sliceToValue = (start, end) =>
+    tks.slice(start, end + 1).map((t) => t.value).join("");
+
+  for (let i = 0; i < tks.length; i++) {
+    const tok = tks[i];
+    if (!(tok.display === "%" || tok.value === "%")) continue;
+
+    const bRange = findLastOperandRange(i - 1, tks);
+    if (!bRange) throw new Error("Percent without operand");
+
+    const opIndex = lastIndexWhere(
+      (k) => {
+        const v = tks[k]?.value;
+        const d = tks[k]?.display;
+        return isOpValue(v) || d === "×" || d === "÷" || d === "−";
+      },
+      bRange.start - 1,
+      tks
+    );
+
+    // No operator before B% => (B/100)
+    if (opIndex === -1) {
+      const bVal = sliceToValue(bRange.start, bRange.end);
+      const repl = { display: "%", value: `((${bVal})/100)` };
+      tks.splice(bRange.start, i - bRange.start + 1, repl);
+      i = bRange.start;
+      continue;
+    }
+
+    // Normalize operator
+    const opTok = tks[opIndex];
+    let op = opTok.value;
+    if (opTok.display === "×") op = "*";
+    if (opTok.display === "÷") op = "/";
+    if (opTok.display === "−") op = "-";
+
+    const aRange = findLastOperandRange(opIndex - 1, tks);
+    if (!aRange) {
+      const bVal = sliceToValue(bRange.start, bRange.end);
+      const repl = { display: "%", value: `((${bVal})/100)` };
+      tks.splice(bRange.start, i - bRange.start + 1, repl);
+      i = bRange.start;
+      continue;
+    }
+
+    const aVal = sliceToValue(aRange.start, aRange.end);
+    const bVal = sliceToValue(bRange.start, bRange.end);
+
+    let newChunk;
+    if (op === "+" || op === "-") {
+      // A ± B%  => A ± (A*(B/100))
+      newChunk = `((${aVal})${op}(((${aVal})*((${bVal})/100))))`;
+    } else if (op === "*") {
+      // A * B% => A*(B/100)
+      newChunk = `((${aVal})*((${bVal})/100))`;
+    } else if (op === "/") {
+      // A / B% => A/(B/100)
+      newChunk = `((${aVal})/((${bVal})/100))`;
+    } else {
+      newChunk = `((${bVal})/100)`;
+    }
+
+    const repl = { display: "%", value: newChunk };
+    const replaceStart = aRange.start;
+    const replaceCount = i - replaceStart + 1;
+    tks.splice(replaceStart, replaceCount, repl);
+    i = replaceStart;
+  }
+
+  return tks.map((t) => t.value).join("");
 }
 
 function evaluateExpression() {
   if (!tokens.length) return;
 
-  let expr = tokens.map((t) => t.value).join("");
+  let expr = buildExprWithPercent();
   expr = autoBalanceParentheses(expr);
 
   try {
@@ -199,7 +332,6 @@ function evaluateExpression() {
 
     if (typeof result === "number" && Number.isFinite(result)) {
       const formatted = formatResult(result);
-
       if (formatted === "Error") {
         resultDisplay.textContent = "Error";
         return;
@@ -236,11 +368,7 @@ function toggleTheme() {
   const next = current === "dark" ? "light" : "dark";
   document.body.setAttribute("data-theme", next);
 
-  if (next === "light") {
-    themeToggleBtn.textContent = "Dark mode";
-  } else {
-    themeToggleBtn.textContent = "Light mode";
-  }
+  themeToggleBtn.textContent = next === "light" ? "Dark mode" : "Light mode";
 }
 
 // ------------- Button Event Wiring -------------
@@ -264,13 +392,18 @@ document.querySelectorAll(".btn").forEach((btn) => {
       return;
     }
 
-    // Regular input (digits, operators, functions, π, e, etc.)
     const display =
       btn.dataset.display !== undefined
         ? btn.dataset.display
         : btn.textContent.trim();
-    const value =
-      btn.dataset.value !== undefined ? btn.dataset.value : display;
+    const value = btn.dataset.value !== undefined ? btn.dataset.value : display;
+
+    // NEW: auto-eval on percent press
+    if (display === "%" || value === "%") {
+      handleInput("%", "%");
+      evaluateExpression();
+      return;
+    }
 
     handleInput(display, value);
   });
@@ -284,7 +417,6 @@ themeToggleBtn.addEventListener("click", toggleTheme);
 document.addEventListener("keydown", (e) => {
   const key = e.key;
 
-  // Basic digits and decimal
   if (key >= "0" && key <= "9") {
     handleInput(key);
     return;
@@ -295,7 +427,6 @@ document.addEventListener("keydown", (e) => {
     return;
   }
 
-  // Operators
   if (key === "+") {
     handleInput("+", "+");
     return;
@@ -316,8 +447,10 @@ document.addEventListener("keydown", (e) => {
     return;
   }
 
+  // NEW: auto-eval on percent key
   if (key === "%") {
     handleInput("%", "%");
+    evaluateExpression();
     return;
   }
 
@@ -331,14 +464,12 @@ document.addEventListener("keydown", (e) => {
     return;
   }
 
-  // Evaluate
   if (key === "Enter" || key === "=") {
     e.preventDefault();
     evaluateExpression();
     return;
   }
 
-  // Delete / clear
   if (key === "Backspace") {
     deleteLast();
     return;
